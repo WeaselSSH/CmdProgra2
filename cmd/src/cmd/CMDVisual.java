@@ -133,8 +133,13 @@ public class CMDVisual extends JFrame {
                         appendText("Uso: cd <ruta>\n");
                     } else {
                         String ruta = raw.substring(raw.indexOf(' ') + 1).trim();
-                        File nuevaRuta;
-                        if (ruta.equals("..")) {
+                        File nuevaRuta = null;
+
+                        if (ruta.matches("\\.+")) {
+                            if (!ruta.equals("..")) {
+                                appendText("Ruta no válida.\n");
+                                return;
+                            }
                             nuevaRuta = rutaActual.getParentFile();
                         } else {
                             nuevaRuta = new File(ruta);
@@ -142,6 +147,7 @@ public class CMDVisual extends JFrame {
                                 nuevaRuta = new File(rutaActual, ruta);
                             }
                         }
+
                         if (nuevaRuta != null && nuevaRuta.exists() && nuevaRuta.isDirectory()) {
                             manejador.cd(nuevaRuta);
                             rutaActual = nuevaRuta;
@@ -192,8 +198,13 @@ public class CMDVisual extends JFrame {
                     if (parts.length < 2) {
                         appendText("Uso: rm <nombre>\n");
                     } else {
-                        boolean borrado = manejador.rm(parts[1]);
-                        appendText(borrado ? "Borrado OK\n" : "No se pudo borrar (no existe o error)\n");
+                        String objetivo = parts[1];
+                        boolean borrado = manejador.rm(objetivo);
+                        if (borrado) {
+                            appendText("Borrado: " + objetivo + "\n");
+                        } else {
+                            appendText("No se pudo borrar (no existe o error): " + objetivo + "\n");
+                        }
                     }
                     break;
 
@@ -255,9 +266,5 @@ public class CMDVisual extends JFrame {
         } catch (Exception ex) {
             appendText("Error al ejecutar comando: " + ex.getMessage() + "\n");
         }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new CMDVisual().setVisible(true));
     }
 }
