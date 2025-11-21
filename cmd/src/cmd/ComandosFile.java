@@ -1,11 +1,6 @@
 package cmd;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -19,11 +14,17 @@ public class ComandosFile {
     }
 
     public void cd(File nuevaRuta) {
-        pathActual = nuevaRuta;
+        if (nuevaRuta != null && nuevaRuta.exists() && nuevaRuta.isDirectory()) {
+            pathActual = nuevaRuta;
+        }
     }
 
     public boolean mkdir(String nombre) {
         if (nombre == null || nombre.trim().isEmpty()) {
+            return false;
+        }
+
+        if (!pathActual.exists() || !pathActual.isDirectory()) {
             return false;
         }
 
@@ -37,7 +38,11 @@ public class ComandosFile {
     }
 
     public boolean Mfile(String nombre) throws IOException {
-        if (nombre == null || nombre.isBlank()) {
+        if (nombre == null || nombre.trim().isEmpty()) {
+            return false;
+        }
+
+        if (!pathActual.exists() || !pathActual.isDirectory()) {
             return false;
         }
 
@@ -45,6 +50,11 @@ public class ComandosFile {
 
         if (objetivo.exists()) {
             return false;
+        }
+
+        File parent = objetivo.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
         }
 
         return objetivo.createNewFile();
@@ -65,7 +75,7 @@ public class ComandosFile {
 
     private boolean borrarRecursivo(File file) {
         if (file.isDirectory()) {
-            File children[] = file.listFiles();
+            File[] children = file.listFiles();
             if (children != null) {
                 for (File child : children) {
                     if (!borrarRecursivo(child)) {
@@ -87,7 +97,13 @@ public class ComandosFile {
     }
 
     public String dir(String nombre) {
-        File ArchivoDir = new File(pathActual, nombre);
+        File ArchivoDir;
+        if (nombre == null || nombre.trim().isEmpty() || nombre.equals(".")) {
+            ArchivoDir = pathActual;
+        } else {
+            ArchivoDir = new File(pathActual, nombre);
+        }
+
         if (!ArchivoDir.exists()) {
             return "Error: el archivo o carpeta no existe: " + ArchivoDir.getPath();
         }
@@ -102,7 +118,8 @@ public class ComandosFile {
             return "Acción no permitida";
         }
 
-        String contenido = String.format("%-20s %-10s %-12s %-30s\n", "Última Modificación", "Tipo", "Tamaño", "Nombre");
+        StringBuilder contenido = new StringBuilder();
+        contenido.append(String.format("%-20s %-10s %-12s %-30s%n", "Última Modificación", "Tipo", "Tamaño", "Nombre"));
 
         int archivos = 0;
         int directorios = 0;
@@ -111,8 +128,7 @@ public class ComandosFile {
         File[] hijos = ArchivoDir.listFiles();
         if (hijos != null) {
             for (File child : hijos) {
-                String fecha = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-                        .format(new Date(child.lastModified()));
+                String fecha = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(child.lastModified()));
 
                 String tipo;
                 String tamaño;
@@ -130,16 +146,17 @@ public class ComandosFile {
 
                 String nombre = child.getName();
 
-                contenido += String.format("%-20s %-10s %-12s %-30s\n", fecha, tipo, tamaño, nombre);
+                contenido.append(String.format("%-20s %-10s %-12s %-30s%n", fecha, tipo, tamaño, nombre));
             }
         }
 
         long espacioLibre = ArchivoDir.getUsableSpace();
 
-        contenido += "\n" + archivos + " archivos\t" + formatearTamaño(bytesTotal) + "\n";
-        contenido += directorios + " directorios\t" + formatearTamaño(espacioLibre) + " libres\n";
+        contenido.append(System.lineSeparator())
+                 .append(archivos).append(" archivos\t").append(formatearTamaño(bytesTotal)).append(System.lineSeparator());
+        contenido.append(directorios).append(" directorios\t").append(formatearTamaño(espacioLibre)).append(" libres").append(System.lineSeparator());
 
-        return contenido;
+        return contenido.toString();
     }
 
     private String formatearTamaño(long bytes) {
@@ -163,41 +180,77 @@ public class ComandosFile {
             return "Error: nombre no válido";
         }
 
-        File target = new File(nombre, nombre);
+        File target = new File(pathActual, nombre);
 
         if (!target.exists()) {
-            return "Error: el archivo no existe";
+            return "Error: el archivo no existe: " + target.getAbsolutePath();
         }
 
         if (target.isDirectory()) {
             return "Error: no se puede escribir en una carpeta";
         }
 
-        try (FileWriter fw = new FileWriter(target, true); PrintWriter pw = new PrintWriter(fw)) {
+        try (FileWriter fw = new FileWriter(target, true);
+             PrintWriter pw = new PrintWriter(fw)) {
+
+            if (texto == null) texto = "";
             pw.println(texto);
-            return "Texto guardado correctamente en:\n" + target.getAbsolutePath();
+            return "";
         } catch (IOException e) {
             return "Error al escribir archivo: " + e.getMessage();
         }
     }
 
     public String leerTexto() {
-        if (!pathActual.exists()) {
-            return "El archivo no existe";
+        if (pathActual == null) {
+            return "Error: path actual no definido";
         }
 
-        String contenido = "Contenido del archivo:\n";
+        if (!pathActual.exists()) {
+            return "Error: el archivo no existe: " + pathActual.getAbsolutePath();
+        }
 
+        if (pathActual.isDirectory()) {
+            return "Error: pathActual es un directorio. Use leerTexto(nombre) para leer un archivo específico.";
+        }
+
+        StringBuilder contenido = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(pathActual))) {
             String linea;
             while ((linea = br.readLine()) != null) {
-                contenido = contenido + linea + "\n";
+                contenido.append(linea).append(System.lineSeparator());
             }
         } catch (IOException e) {
             return "Error al leer el archivo: " + e.getMessage();
         }
+        return contenido.toString();
+    }
 
-        return contenido;
+    public String leerTexto(String nombre) {
+        if (nombre == null || nombre.trim().isEmpty()) {
+            return "Error: nombre no válido";
+        }
+
+        File target = new File(pathActual, nombre);
+
+        if (!target.exists()) {
+            return "Error: el archivo no existe: " + target.getAbsolutePath();
+        }
+
+        if (target.isDirectory()) {
+            return "Error: no se puede leer una carpeta";
+        }
+
+        StringBuilder contenido = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(new FileReader(target))) {
+            String linea;
+            while ((linea = br.readLine()) != null) {
+                contenido.append(linea).append(System.lineSeparator());
+            }
+        } catch (IOException e) {
+            return "Error al leer el archivo: " + e.getMessage();
+        }
+        return contenido.toString();
     }
 
     public String horaActual() {
@@ -213,5 +266,4 @@ public class ComandosFile {
 
         return formatoFecha.format(c.getTime());
     }
-
 }
