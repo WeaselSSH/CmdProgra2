@@ -73,116 +73,132 @@ public class ComandosFile {
         return true;
     }
 
-    void dir(String nombre) {
+    public String dir(String nombre) {
         File ArchivoDir = new File(pathActual, nombre);
-
         if (!ArchivoDir.exists()) {
-            System.out.println("Error: el archivo o carpeta no existe: " + ArchivoDir.getPath());
-            return;
+            return "Error: el archivo o carpeta no existe: " + ArchivoDir.getPath();
         }
-
         if (!ArchivoDir.isDirectory()) {
-            System.out.println("Error: no es un directorio: " + ArchivoDir.getPath());
-            return;
+            return "Error: no es un directorio: " + ArchivoDir.getPath();
         }
-
-        dir(ArchivoDir);
+        return dir(ArchivoDir);
     }
 
-    void dir(File ArchivoDir) {
-        if (ArchivoDir.isDirectory()) {
-            System.out.println("fOLDER: " + ArchivoDir.getName());
-            int dirs = 0, files = 0, bytes = 0;
+    public String dir(File ArchivoDir) {
+        if (!ArchivoDir.isDirectory()) {
+            return "Acción no permitida";
+        }
 
-            for (File child : ArchivoDir.listFiles()) {
-                System.out.print(new Date(child.lastModified()));
+        String contenido = String.format("%-20s %-10s %-12s %-30s\n", "Última Modificación", "Tipo", "Tamaño", "Nombre");
 
+        int archivos = 0;
+        int directorios = 0;
+        long bytesTotal = 0;
+
+        File[] hijos = ArchivoDir.listFiles();
+        if (hijos != null) {
+            for (File child : hijos) {
+                String fecha = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                        .format(new Date(child.lastModified()));
+
+                String tipo;
+                String tamaño;
                 if (child.isDirectory()) {
-                    System.out.print("\t<DIR>\t");
-                    dirs++;
+                    tipo = "<DIR>";
+                    tamaño = "-";
+                    directorios++;
+                } else {
+                    tipo = "FILE";
+                    long b = child.length();
+                    tamaño = formatearTamaño(b);
+                    archivos++;
+                    bytesTotal += b;
                 }
 
-                if (child.isFile()) {
-                    System.out.print("\t    \t");
-                    System.out.print(child.length());
-                    files++;
-                    bytes += child.length();
-                }
+                String nombre = child.getName();
 
-                System.out.println("\t" + child.getName());
+                contenido += String.format("%-20s %-10s %-12s %-30s\n", fecha, tipo, tamaño, nombre);
             }
+        }
 
-            System.out.println("{" + files + "} files y {" + dirs + "} dirs");
-            System.out.println(bytes + " bytes");
+        long espacioLibre = ArchivoDir.getUsableSpace();
 
+        contenido += "\n" + archivos + " archivos\t" + formatearTamaño(bytesTotal) + "\n";
+        contenido += directorios + " directorios\t" + formatearTamaño(espacioLibre) + " libres\n";
+
+        return contenido;
+    }
+
+    private String formatearTamaño(long bytes) {
+        double kb = bytes / 1024.0;
+        double mb = kb / 1024.0;
+        double gb = mb / 1024.0;
+
+        if (gb >= 1) {
+            return String.format("%.2f GB", gb);
+        } else if (mb >= 1) {
+            return String.format("%.2f MB", mb);
+        } else if (kb >= 1) {
+            return String.format("%.2f KB", kb);
         } else {
-            System.out.println("Accion no permitida");
+            return bytes + " B";
         }
     }
 
-    public boolean escribirTexto(String nombre, String texto) {
-
+    public String escribirTexto(String nombre, String texto) {
         if (nombre == null || nombre.trim().isEmpty()) {
-            System.out.println("Error: nombre no valido");
-            return false;
+            return "Error: nombre no válido";
         }
 
         File target = new File(nombre, nombre);
 
         if (!target.exists()) {
-            System.out.println("Error: el archivo no existe");
-            return false;
+            return "Error: el archivo no existe";
         }
 
         if (target.isDirectory()) {
-            System.out.println("Error: no se puede escribir en una carpeta");
-            return false;
+            return "Error: no se puede escribir en una carpeta";
         }
 
         try (FileWriter fw = new FileWriter(target, true); PrintWriter pw = new PrintWriter(fw)) {
-
             pw.println(texto);
-            System.out.println("Texto guardado correctamente en:");
-            System.out.println(target.getAbsolutePath());
-            return true;
-
+            return "Texto guardado correctamente en:\n" + target.getAbsolutePath();
         } catch (IOException e) {
-            System.out.println("Error al escribir archivo: " + e.getMessage());
-            return false;
+            return "Error al escribir archivo: " + e.getMessage();
         }
     }
 
-    void leerTexto() throws IOException {
+    public String leerTexto() {
         if (!pathActual.exists()) {
-            System.out.println("El archivo no existe");
-            return;
+            return "El archivo no existe";
         }
 
-        FileReader fr = new FileReader(pathActual);
-        BufferedReader br = new BufferedReader(fr);
+        String contenido = "Contenido del archivo:\n";
 
-        System.out.println(" del archivo");
-        String linea;
-        while ((linea = br.readLine()) != null) {
-            System.out.println(linea);
+        try (BufferedReader br = new BufferedReader(new FileReader(pathActual))) {
+            String linea;
+            while ((linea = br.readLine()) != null) {
+                contenido = contenido + linea + "\n";
+            }
+        } catch (IOException e) {
+            return "Error al leer el archivo: " + e.getMessage();
         }
-        br.close();
+
+        return contenido;
     }
 
-    void horaActual() {
+    public String horaActual() {
         Calendar c = Calendar.getInstance();
         SimpleDateFormat formatoHora = new SimpleDateFormat("HH:mm:ss");
 
-        String horaStr = formatoHora.format(c.getTime());
-        System.out.println("Hora actual: " + horaStr);
+        return formatoHora.format(c.getTime());
     }
 
-    void fechaActual() {
+    public String fechaActual() {
         Calendar c = Calendar.getInstance();
         SimpleDateFormat formatoFecha = new SimpleDateFormat("dd/MM/yyyy");
 
-        String fechaStr = formatoFecha.format(c.getTime());
-        System.out.println("Fecha actual: " + fechaStr);
+        return formatoFecha.format(c.getTime());
     }
 
 }

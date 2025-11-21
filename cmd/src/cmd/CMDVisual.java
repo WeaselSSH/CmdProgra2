@@ -198,13 +198,13 @@ public class CMDVisual extends JFrame {
                     break;
 
                 case "dir":
+                    String resultadoDir;
                     if (parts.length < 2) {
-                        appendText("Listado del directorio actual:\n");
-                        manejador.dir(".");
+                        resultadoDir = "Listado del directorio actual:\n" + manejador.dir(".");
                     } else {
-                        manejador.dir(parts[1]);
+                        resultadoDir = manejador.dir(parts[1]);
                     }
-                    appendText("\n");
+                    appendText(resultadoDir + "\n");
                     break;
 
                 case "write":
@@ -213,29 +213,22 @@ public class CMDVisual extends JFrame {
                     } else {
                         String file = parts[1];
                         String texto = raw.substring(raw.indexOf(file) + file.length()).trim();
-                        boolean escrito = manejador.escribirTexto(file, texto);
-                        appendText(escrito ? "Escrito correctamente\n" : "No se pudo escribir (error)\n");
+                        String resultado = manejador.escribirTexto(file, texto);
+                        appendText(resultado + "\n");
                     }
                     break;
 
                 case "leer":
-                    try {
-                        manejador.leerTexto();
-                    } catch (IOException e) {
-                        appendText("Error leyendo texto: " + e.getMessage() + "\n");
-                    }
+                    String contenido = manejador.leerTexto();
+                    appendText(contenido + "\n");
                     break;
-
                 case "hora":
-                    manejador.horaActual();
-                    appendText("\n");
+                    appendText(manejador.horaActual() + "\n");
                     break;
 
                 case "fecha":
-                    manejador.fechaActual();
-                    appendText("\n");
+                    appendText(manejador.fechaActual() + "\n");
                     break;
-
                 case "exit":
                     appendText("Cerrando...\n");
                     dispose();
