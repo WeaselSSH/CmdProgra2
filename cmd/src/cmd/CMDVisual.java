@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package cmd;
 
 import javax.swing.*;
@@ -20,7 +16,7 @@ public class CMDVisual extends JFrame {
     private final JTextArea area;
     private int inicioEntrada = 0;
     private final ComandosFile manejador;
-    private final String PROMPT = "cmd> ";
+    private File rutaActual;
 
     public CMDVisual() {
         super("CMD Insano - Integrado");
@@ -28,7 +24,9 @@ public class CMDVisual extends JFrame {
         setSize(1100, 650);
         setLocationRelativeTo(null);
 
-        manejador = new ComandosFile(".");
+        String dirUsuario = System.getProperty("user.dir");
+        rutaActual = new File(dirUsuario);
+        manejador = new ComandosFile(rutaActual.getAbsolutePath());
 
         area = new JTextArea();
         area.setEditable(true);
@@ -100,7 +98,7 @@ public class CMDVisual extends JFrame {
     }
 
     private void writePrompt() {
-        appendText(PROMPT);
+        appendText(rutaActual.getAbsolutePath() + ">");
         inicioEntrada = area.getDocument().getLength();
     }
 
@@ -126,6 +124,7 @@ public class CMDVisual extends JFrame {
                     appendText("  leer                - llamar a leerTexto() de ComandosFile (usa pathActual)\n");
                     appendText("  hora                - muestra hora\n");
                     appendText("  fecha               - muestra fecha\n");
+                    appendText("  cls                 - Limpia el cmd\n");
                     appendText("  exit                - cerrar CMD\n");
                     break;
 
@@ -134,15 +133,37 @@ public class CMDVisual extends JFrame {
                         appendText("Uso: cd <ruta>\n");
                     } else {
                         String ruta = raw.substring(raw.indexOf(' ') + 1).trim();
-                        manejador.cd(new File(ruta));
-                        appendText("Intento cambiar a: " + ruta + "\n");
+                        File nuevaRuta;
+                        if (ruta.equals("..")) {
+                            nuevaRuta = rutaActual.getParentFile();
+                        } else {
+                            nuevaRuta = new File(ruta);
+                            if (!nuevaRuta.isAbsolute()) {
+                                nuevaRuta = new File(rutaActual, ruta);
+                            }
+                        }
+                        if (nuevaRuta != null && nuevaRuta.exists() && nuevaRuta.isDirectory()) {
+                            manejador.cd(nuevaRuta);
+                            rutaActual = nuevaRuta;
+                            appendText("Directorio actual: " + rutaActual.getAbsolutePath() + "\n");
+                        } else {
+                            appendText("El sistema no puede encontrar la ruta especificada.\n");
+                        }
                     }
                     break;
 
                 case "cdback":
                 case "cd..":
                     boolean ok = manejador.cdBack();
-                    appendText(ok ? "Subido al directorio padre\n" : "No se pudo subir (sin padre)\n");
+                    if (ok) {
+                        File padre = rutaActual.getParentFile();
+                        if (padre != null) {
+                            rutaActual = padre;
+                        }
+                        appendText("Subido al directorio padre\n");
+                    } else {
+                        appendText("No se pudo subir (sin padre)\n");
+                    }
                     break;
 
                 case "mkdir":
@@ -218,6 +239,13 @@ public class CMDVisual extends JFrame {
                 case "exit":
                     appendText("Cerrando...\n");
                     dispose();
+                    break;
+
+                case "cls":
+                    area.setText("");
+                    appendText("Microsoft Windows [Versión 10.0.22621.521]\n");
+                    appendText("(c) Microsoft Corporation. Todos los derechos reservados.\n");
+                    appendText("Si ocupas ayuda usa el comando 'help'.\n");
                     break;
 
                 default:
