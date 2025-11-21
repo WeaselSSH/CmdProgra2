@@ -56,12 +56,25 @@ public class ComandosFile {
         }
 
         File target = new File(pathActual, nombre);
-
         if (!target.exists()) {
             return false;
         }
 
-        return target.delete();
+        return borrarRecursivo(target);
+    }
+
+    private boolean borrarRecursivo(File file) {
+        if (file.isDirectory()) {
+            File children[] = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    if (!borrarRecursivo(child)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return file.delete();
     }
 
     public boolean cdBack() {
