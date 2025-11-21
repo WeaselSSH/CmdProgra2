@@ -6,18 +6,15 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.File;
-import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
 public class CMDVisual extends JFrame {
 
     private final JTextArea area;
     private int inicioEntrada = 0;
     private final ComandosFile manejador;
-    private File rutaActual;
-
-    private boolean modoEscritura = false;
-    private String escribeTarget = null;
-    private StringBuilder escribeBuffer = null;
 
     public CMDVisual() {
         super("CMD Insano");
@@ -26,8 +23,7 @@ public class CMDVisual extends JFrame {
         setLocationRelativeTo(null);
 
         String dirUsuario = System.getProperty("user.dir");
-        rutaActual = new File(dirUsuario);
-        manejador = new ComandosFile(rutaActual.getAbsolutePath());
+        manejador = new ComandosFile(dirUsuario);
 
         area = new JTextArea();
         area.setEditable(true);
@@ -44,6 +40,7 @@ public class CMDVisual extends JFrame {
         appendText("Microsoft Windows [Versión 10.0.22621.521]\n");
         appendText("(c) Microsoft Corporation. Todos los derechos reservados.\n");
         appendText("Si ocupas ayuda usa el comando 'help'.\n");
+
         writePrompt();
 
         area.addKeyListener(new KeyAdapter() {
@@ -51,30 +48,23 @@ public class CMDVisual extends JFrame {
             public void keyPressed(KeyEvent e) {
                 int caretPos = area.getCaretPosition();
 
-                if (!modoEscritura) {
-                    if ((e.getKeyCode() == KeyEvent.VK_LEFT || e.getKeyCode() == KeyEvent.VK_HOME) && caretPos <= inicioEntrada) {
-                        e.consume();
-                        area.setCaretPosition(inicioEntrada);
-                        return;
-                    }
-                    if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE && caretPos <= inicioEntrada) {
-                        e.consume();
-                        return;
-                    }
-                    if (e.getKeyCode() == KeyEvent.VK_DELETE && caretPos < inicioEntrada) {
-                        e.consume();
-                        return;
-                    }
+                if ((e.getKeyCode() == KeyEvent.VK_LEFT || e.getKeyCode() == KeyEvent.VK_HOME) && caretPos <= inicioEntrada) {
+                    e.consume();
+                    area.setCaretPosition(inicioEntrada);
+                    return;
+                }
+                if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE && caretPos <= inicioEntrada) {
+                    e.consume();
+                    return;
+                }
+                if (e.getKeyCode() == KeyEvent.VK_DELETE && caretPos < inicioEntrada) {
+                    e.consume();
+                    return;
                 }
 
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                     e.consume();
-                    if (modoEscritura) {
-                        handleInteractiveWrite();
-                        return;
-                    }
-
-                    String command = "";
+                    String command;
                     try {
                         int len = area.getDocument().getLength();
                         command = area.getText(inicioEntrada, len - inicioEntrada).trim();
@@ -83,7 +73,6 @@ public class CMDVisual extends JFrame {
                         writePrompt();
                         return;
                     }
-
                     appendText("\n");
                     processCommand(command);
                     writePrompt();
@@ -100,41 +89,17 @@ public class CMDVisual extends JFrame {
     }
 
     private void writePrompt() {
-        appendText(rutaActual.getAbsolutePath() + ">");
+        File actual = manejador.getPathActual();
+        String ruta = actual != null ? actual.getAbsolutePath() : "";
+        appendText(ruta + ">");
         inicioEntrada = area.getDocument().getLength();
     }
 
-    private void handleInteractiveWrite() {
-        try {
-            int len = area.getDocument().getLength();
-            String full = area.getText(inicioEntrada, len - inicioEntrada);
-            String[] lines = full.split("\\r?\\n", -1);
-            String lastLine = lines.length > 0 ? lines[lines.length - 1] : "";
-            if (lastLine.equals(".")) {
-                String textoFinal = escribeBuffer == null ? "" : escribeBuffer.toString();
-                manejador.escribirTexto(escribeTarget, textoFinal);
-                modoEscritura = false;
-                escribeTarget = null;
-                escribeBuffer = null;
-                writePrompt();
-                return;
-            } else {
-                if (escribeBuffer == null) escribeBuffer = new StringBuilder();
-                escribeBuffer.append(lastLine).append(System.lineSeparator());
-                inicioEntrada = area.getDocument().getLength();
-                return;
-            }
-        } catch (BadLocationException ex) {
-            appendText("\nError en modo escritura: " + ex.getMessage() + "\n");
-            modoEscritura = false;
-            escribeTarget = null;
-            escribeBuffer = null;
-            writePrompt();
-        }
-    }
-
     private void processCommand(String raw) {
-        if (raw.isEmpty()) return;
+        if (raw == null || raw.isEmpty()) {
+            return;
+        }
+
         String[] parts = raw.split("\\s+");
         String cmd = parts[0].toLowerCase();
 
@@ -143,12 +108,12 @@ public class CMDVisual extends JFrame {
                 case "help":
                     appendText("Comandos disponibles:\n");
                     appendText("  cd <ruta>\n");
-                    appendText("  ...\n");
+                    appendText("  cd.. | ... | cdback\n");
                     appendText("  mkdir <nombre>\n");
                     appendText("  mfile <nombre>\n");
                     appendText("  rm <nombre>\n");
-                    appendText("  dir\n");
-                    appendText("  wr <archivo> [texto...]\n");
+                    appendText("  dir [ruta]\n");
+                    appendText("  wr <archivo> <texto>\n");
                     appendText("  rd <archivo>\n");
                     appendText("  time\n");
                     appendText("  date\n");
@@ -158,23 +123,29 @@ public class CMDVisual extends JFrame {
 
                 case "cd":
                     if (parts.length < 2) {
-                        appendText("Uso: cd <ruta>\n");
+                        File actual = manejador.getPathActual();
+                        if (actual != null) {
+                            appendText(actual.getAbsolutePath() + "\n");
+                        }
                     } else {
                         String ruta = raw.substring(raw.indexOf(' ') + 1).trim();
+                        File base = manejador.getPathActual();
                         File nueva;
-                        if (ruta.equals("..")) {
-                            nueva = rutaActual.getParentFile();
+                        if ("..".equals(ruta)) {
+                            nueva = base != null ? base.getParentFile() : null;
                         } else {
                             File posible = new File(ruta);
                             if (posible.isAbsolute()) {
                                 nueva = posible;
                             } else {
-                                nueva = new File(rutaActual, ruta);
+                                nueva = base != null ? new File(base, ruta) : posible;
                             }
                         }
-                        if (nueva != null && nueva.exists() && nueva.isDirectory()) {
-                            manejador.cd(nueva);
-                            rutaActual = nueva;
+                        if (manejador.cd(nueva)) {
+                            File actual = manejador.getPathActual();
+                            if (actual != null) {
+                                appendText(actual.getAbsolutePath() + "\n");
+                            }
                         } else {
                             appendText("No existe la ruta.\n");
                         }
@@ -185,10 +156,12 @@ public class CMDVisual extends JFrame {
                 case "cd..":
                 case "cdback":
                     if (manejador.cdBack()) {
-                        File padre = rutaActual.getParentFile();
-                        if (padre != null) rutaActual = padre;
+                        File actual = manejador.getPathActual();
+                        if (actual != null) {
+                            appendText(actual.getAbsolutePath() + "\n");
+                        }
                     } else {
-                        appendText("No se puede subir más\n");
+                        appendText("No se puede subir más.\n");
                     }
                     break;
 
@@ -196,7 +169,8 @@ public class CMDVisual extends JFrame {
                     if (parts.length < 2) {
                         appendText("Uso: mkdir <carpeta>\n");
                     } else {
-                        manejador.mkdir(parts[1]);
+                        String msg = manejador.mkdir(parts[1]);
+                        appendText(msg + "\n");
                     }
                     break;
 
@@ -204,11 +178,8 @@ public class CMDVisual extends JFrame {
                     if (parts.length < 2) {
                         appendText("Uso: mfile <archivo>\n");
                     } else {
-                        try {
-                            manejador.Mfile(parts[1]);
-                        } catch (IOException ioe) {
-                            appendText("Error: " + ioe.getMessage() + "\n");
-                        }
+                        String msg = manejador.mfile(parts[1]);
+                        appendText(msg + "\n");
                     }
                     break;
 
@@ -216,43 +187,51 @@ public class CMDVisual extends JFrame {
                     if (parts.length < 2) {
                         appendText("Uso: rm <nombre>\n");
                     } else {
-                        manejador.rm(parts[1]);
+                        String msg = manejador.rm(parts[1]);
+                        appendText(msg + "\n");
                     }
                     break;
 
                 case "dir":
-                    String resultadoDir = manejador.dir(".");
+                    String argDir;
+                    if (parts.length < 2) {
+                        argDir = ".";
+                    } else {
+                        argDir = raw.substring(raw.indexOf(' ') + 1).trim();
+                    }
+                    String resultadoDir = manejador.dir(argDir);
                     appendText(resultadoDir + "\n");
                     break;
 
                 case "wr":
-                    if (parts.length < 2) break;
-                    String nombre = parts[1];
-                    if (parts.length >= 3) {
-                        int startIdx = raw.indexOf(parts[2]);
-                        String textoInline = raw.substring(startIdx);
-                        manejador.escribirTexto(nombre, textoInline);
+                    if (parts.length < 3) {
+                        appendText("Uso: wr <archivo> <texto>\n");
                     } else {
-                        modoEscritura = true;
-                        escribeTarget = nombre;
-                        escribeBuffer = new StringBuilder();
-                        inicioEntrada = area.getDocument().getLength();
+                        String nombre = parts[1];
+                        int startIdx = raw.indexOf(parts[2]);
+                        String texto = raw.substring(startIdx);
+                        String msg = manejador.escribirTexto(nombre, texto);
+                        appendText(msg + "\n");
                     }
                     break;
 
                 case "rd":
-                    if (parts.length < 2) break;
-                    String objetivo = parts[1];
-                    String contenido = manejador.leerTexto(objetivo);
-                    appendText(contenido + "\n");
+                    if (parts.length < 2) {
+                        appendText("Uso: rd <archivo>\n");
+                    } else {
+                        String contenido = manejador.leerTexto(parts[1]);
+                        appendText(contenido + "\n");
+                    }
                     break;
 
                 case "time":
-                    appendText(manejador.horaActual() + "\n");
+                    String hora = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+                    appendText(hora + "\n");
                     break;
 
                 case "date":
-                    appendText(manejador.fechaActual() + "\n");
+                    String fecha = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                    appendText(fecha + "\n");
                     break;
 
                 case "cls":
